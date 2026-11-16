@@ -1,0 +1,32 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="Теневой вор: Побег по пикселям"
+config/description="Shadow Thief: Pixel Escape (Echoes of the Void) — пошаговый тактический стелс"
+run/main_scene="res://ui/MainMenu.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+config/icon="res://assets/player/player_idle_topdown.png"
+
+[autoload]
+
+EventBus="*res://autoload/EventBus.gd"
+GameState="*res://autoload/GameState.gd"
+ProceduralSFX="*res://autoload/ProceduralSFX.gd"
+SceneTransition="*res://autoload/SceneTransition.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/window_width_override=1600
+window/size/window_height_override=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0.0275, 0.0353, 0.0549, 1)
+viewport/hdr_2d=true
