@@ -30,7 +30,7 @@ WASD/стрелки — шаг · Space/Z — пропуск хода · Shift+�
 - `entities/` — игрок, охрана (FSM), камеры, турели, лазеры, двери, рубильники, лут
 - `levels/` — LevelLoader, MainGame, слои отрисовки; `levels/campaign/*.json` — 5 уровней
 - `ui/`, `vfx/`, `autoload/` — меню, HUD, модалки, шейдеры, шина событий, звук
-- `tests/` — headless-проверки: `solver.gd` (поиск прохождения), `replay.gd` (регрессия), `smoke.gd`, `debug.gd`
+- `tests/` — headless-проверки: `unit_tests.gd` (юнит/интеграционные тесты симуляции), `solver.gd` (поиск прохождения), `replay.gd` (регрессия), `smoke.gd`, `debug.gd`
 - `tools/` — подготовка ассетов и генератор уровней 2–5
 
 ## Проверка уровней
