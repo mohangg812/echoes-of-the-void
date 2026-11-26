@@ -1,0 +1,45 @@
+name: Build — Windows Desktop (.exe)
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Export Windows Desktop Build
+    runs-on: ubuntu-latest
+    env:
+      GODOT_VERSION: "4.3-stable"
+      EXPORT_NAME: "EchoesOfTheVoid"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} & Export Templates
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" -O godot.zip
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/$(echo ${GODOT_VERSION} | tr '-' '.')"
+          mkdir -p "$TEMPLATE_DIR"
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_export_templates.tpz" -O templates.tpz
+          unzip -q templates.tpz -d templates_tmp
+          mv templates_tmp/templates/* "$TEMPLATE_DIR/"
+          rm -rf godot.zip templates.tpz templates_tmp
+
+      - name: Export Windows executable
+        run: |
+          mkdir -p export
+          godot --headless --path . --export-release "Windows Desktop" "export/${EXPORT_NAME}.exe"
+          ls -lh export/
+
+      - name: Upload Windows build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EchoesOfTheVoid-Windows-x64
+          path: export/
+          retention-days: 30

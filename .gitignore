@@ -1,5 +1,25 @@
+# Godot 4+
 .godot/
 *.import
-export/
-shots/
 .mono/
+data_*/
+mono_crash.*.json
+
+# Build artifacts & screenshots
+export/
+builds/
+shots/
+
+# OS & Office temp files
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*.docx
+~$*.xlsx
+*.tmp
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+.venv/

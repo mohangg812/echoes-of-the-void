@@ -1,0 +1,77 @@
+name: CI — Tests & Level Validation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  validate-levels:
+    name: Validate Campaign JSON Levels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate JSON syntax and required fields
+        run: |
+          python3 - <<'EOF'
+          import glob, json, sys
+
+          files = sorted(glob.glob("levels/campaign/*.json"))
+          if not files:
+              print("ERROR: No campaign JSON files found in levels/campaign/")
+              sys.exit(1)
+
+          required_keys = ["level_id", "title", "layout"]
+          errors = 0
+          for path in files:
+              try:
+                  with open(path, "r", encoding="utf-8") as f:
+                      data = json.load(f)
+                  for key in required_keys:
+                      if key not in data:
+                          print(f"[FAIL] {path}: missing key '{key}'")
+                          errors += 1
+                  layout = data.get("layout", [])
+                  if not layout or len({len(row) for row in layout}) != 1:
+                      print(f"[FAIL] {path}: non-rectangular or empty layout")
+                      errors += 1
+                  else:
+                      print(f"[OK] {path}: {len(layout[0])}x{len(layout)} ({data.get('title')})")
+              except Exception as exc:
+                  print(f"[FAIL] {path}: {exc}")
+                  errors += 1
+
+          print(f"Checked {len(files)} level(s), {errors} error(s).")
+          sys.exit(1 if errors else 0)
+          EOF
+
+  godot-headless-tests:
+    name: Godot 4 Headless Tests
+    runs-on: ubuntu-latest
+    needs: validate-levels
+    env:
+      GODOT_VERSION: "4.3-stable"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} (Linux headless)
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" -O godot.zip
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+          godot --version
+
+      - name: Import project resources
+        run: godot --headless --path . --import || true
+
+      - name: Run unit & integration tests
+        run: godot --headless --path . --script res://tests/unit_tests.gd
+
+      - name: Run smoke tests
+        run: godot --headless --path . --script res://tests/smoke.gd
