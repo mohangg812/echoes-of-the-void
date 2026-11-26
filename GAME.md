@@ -28,13 +28,23 @@ WASD/стрелки — шаг · Space/Z — пропуск хода · Shift+�
 - `core/` — GridManager (сетка + AStarGrid2D), TurnManager (конвейер из 6 фаз и вся симуляция), AlarmManager, TacticalHistory (откат)
 - `systems/vision/` — VisionCone2D (Брезенхэм), AcousticSystem (шум)
 - `entities/` — игрок, охрана (FSM), камеры, турели, лазеры, двери, рубильники, лут
-- `levels/` — LevelLoader, MainGame, слои отрисовки; `levels/campaign/*.json` — 5 уровней
+- `levels/` — LevelLoader, MainGame, слои отрисовки; `levels/campaign/*.json` — 7 уровней
+- `assets/` — игровые PNG-спрайты (очищены от хромакея скриптом `tools/prep_assets.py`); исходники и версии 48×48 хранятся в `assets/sprites/` и `assets/sprites_48px/`
 - `ui/`, `vfx/`, `autoload/` — меню, HUD, модалки, шейдеры, шина событий, звук
 - `tests/` — headless-проверки: `unit_tests.gd` (юнит/интеграционные тесты симуляции), `solver.gd` (поиск прохождения), `replay.gd` (регрессия), `smoke.gd`, `debug.gd`
-- `tools/` — подготовка ассетов и генератор уровней 2–5
+- `tools/` — подготовка ассетов и генератор уровней
+- `export_presets.cfg` — пресет сборки для Windows Desktop (`export/EchoesOfTheVoid.exe`, папка `export/` исключена из Git)
 
-## Проверка уровней
-Все 7 уровней проходятся без единой тревоги (решения в `tests/solutions/`):
+## Сборка для Windows Desktop
 ```
+mkdir -p export
+godot --headless --path . --export-release "Windows Desktop" export/EchoesOfTheVoid.exe
+```
+Также сборка автоматически запускается в GitHub Actions (`.github/workflows/build-windows.yml`).
+
+## Проверка уровней и автотесты
+```
+godot --headless --path . --script res://tests/unit_tests.gd
+godot --headless --path . --script res://tests/smoke.gd
 godot --headless --path . --script res://tests/replay.gd
 ```

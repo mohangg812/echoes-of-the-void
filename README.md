@@ -1,148 +1,89 @@
-# Echoes of the Void — «Теневой вор: Побег по пикселям» (Shadow Thief: Pixel Escape)
+# Echoes of the Void — «Теневой вор: Побег по пикселям»
 
-Полный энциклопедический каталог из **103 ассетов (2D пиксель-арт)** для киберпанк стелс-экшена на **Godot 4**.
+Пошаговый тактический киберпанк стелс-экшен на **Godot 4.3+** (7 миссий кампании, 4 гаджета, 4 типа противников, камеры, турели, лазеры, система стиля, 10 достижений и процедурный звук).
 
-## 📁 Структура каталогов
-
-* `assets/sprites/` — Исходные спрайты высокого разрешения (`1024×1024 px` / HD).
-* `assets/sprites_48px/` — Спрайты, точно подогнанные под базовую сетку игры (`48×48 px` и пропорционально для анимаций/UI/масок/оверлеев) с алгоритмом `Nearest Neighbor`.
-
----
-
-### 📂 Полный каталог ассетов (103 файла):
-
-#### 🕵️ 1. Игрок (Player) — 8 файлов
-* `player_idle_topdown.png` — Базовый спрайт в белой стелс-броне с неоновым циановым визором.
-* `player_dash_topdown.png` — Тактический рывок со шлейфом искр.
-* `player_vent_crawl.png` — Ползущий силуэт в вентиляционной шахте.
-* `player_cloak_active.png` — Голографический фантом под оптическим камуфляжем.
-* `player_damaged.png` — Раненый вор с трещинами в броне и янтарно-красными разрядами (1 HP).
-* `player_eliminated.png` — Экран поражения / ликвидация (вор распадается на цифровые глитч-пиксели).
-* `player_walk_cycle.png` — Спрайт-шит походки из 3 кадров (ходьба со смещением плеч).
-* `player_legs.png` — Отдельный спрайт ног вора для независимой ротации движения в Godot.
-
-#### 🤖 2. Враги, роботы и дроны (Enemies & Drones) — 11 файлов
-* `guard_standard_patrol.png` — Базовый патрульный в красной броне с лазерным визором и винтовкой.
-* `guard_standard_keycard.png` — Патрульный с золотой ключ-картой на поясе.
-* `guard_standard_stunned.png` — Оглушенный ЭМИ охранник с отключенным визором и искрами.
-* `guard_knocked_out.png` — Окончательно обезвреженный охранник, лежащий без сознания на полу.
-* `guard_walk_cycle.png` — Спрайт-шит походки патрульного из 3 кадров.
-* `guard_elite_idle.png` — Элитный гвардеец с октагональным силуэтом, неоновым пурпуром и акустическими радарами.
-* `guard_elite_walk.png` — Шагающий элитный мех-гвардеец.
-* `guard_elite_overdrive.png` — Режим боевой тревоги Overdrive со спаренными орудиями.
-* `drone_scout_idle.png` — Летающий квадрокоптер-дрон разведки со сканирующим зеленым лучом.
-* `drone_scout_alarm.png` — Дрон разведки в режиме тревоги с алым прожектором.
-* `guard_cyber_hound.png` — Быстрая механическая сторожевая кибер-гончая.
-
-#### 📹 3. Системы безопасности и свет (Security & Lights) — 8 файлов
-* `security_camera_active.png` — Активная камера с янтарно-красной оптикой.
-* `security_camera_disabled.png` — Отключенная камера с треснувшей линзой и искрами.
-* `sentry_turret_sleep.png` — Напольная турель в спящем режиме.
-* `sentry_turret_active.png` — Боевой режим турели со спаренными рельсотронами и радиаторами.
-* `laser_emitter_node.png` — Настенный модуль излучателя с рубиновым кристаллом.
-* `laser_beam_tile.png` — Спрайт-шит лазерного луча (активный луч и предупреждающий пунктир).
-* `light_flashlight_cone.png` — Текстура-маска конуса света фонарика для `PointLight2D`.
-* `light_radial_glow.png` — Текстура-маска радиального мягкого свечения для `PointLight2D`.
-
-#### 🧱 4. Архитектура, биомы и тайлы (Tiles & Level) — 17 файлов
-* `tile_floor_cyber.png` — Бесшовный тайл металлического пола со скрытыми дорожками плат.
-* `tile_wall_solid.png` — Монолитная стена с неоновой окантовкой.
-* `tile_wall_corner.png` — Угловой соединительный блок монолитной стены.
-* `tile_wall_glass.png` — Бронированное стекло с металлическими стойками и бликами.
-* `tile_wall_damaged.png` — Треснувшая разрушаемая стена под взрывчатку.
-* `tile_vent_shaft.png` — Решетка вентиляционной шахты с угловыми LED-маркерами.
-* `tile_hiding_closet.png` — Стелс-капсула/шкаф в двух состояниях (пустой и занятый вором).
-* `tile_extraction_pad.png` — Платформа телепортации и эвакуации с шевронами EXIT.
-* `tile_extraction_locked.png` — Заблокированная эвакуация с красными защитными створками.
-* `tile_vault_pedestal.png` — Пьедестал хранилища с концентрическими золотыми кругами.
-* `tile_server_rack.png` — Серверная стойка с мигающими светодиодами шин данных.
-* `tile_corridor_hazard.png` — Предупреждающий пол с черно-желтой разметкой опасности.
-* `tile_puddle_neon.png` — Лужа на полу с отражением неонового света (создает шум при беге).
-* `tile_bio_chamber.png` — Крио-капсула/стазис-камера с зеленым светящимся раствором.
-* `tile_laser_grid_floor.png` — Напольная лазерная сетка (перекрестные красные лучи).
-* `tile_pipe_steam.png` — Промышленная труба с паром для скрытия перемещений.
-* `tile_water_drain.png` — Сливная канализация (альтернативный люк отхода).
-
-#### 🔐 5. Интерактивные объекты, двери и лут (Interactables & Loot) — 17 файлов
-* `loot_vault_gold_core.png` — Главное квантовое золотое ядро данных с голографическими кольцами.
-* `loot_crypto_chip.png` — Крипто-чип данных с золотыми контактами и циановым кристаллом.
-* `item_keycards_set.png` — Сет из трех электронных ключ-карт (Красная, Синяя, Желтая).
-* `door_electronic_red.png` — Тяжелая гермодверь (требуется Красная карта).
-* `door_electronic_blue.png` — Тяжелая гермодверь (требуется Синяя карта).
-* `door_electronic_yellow.png` — Тяжелая гермодверь (требуется Желтая карта).
-* `door_electronic_open.png` — Открытая гермодверь со сдвинутыми в ниши стенок створками.
-* `interact_power_switch.png` — Рубильник питания с мощным рычагом и светящимися шинами.
-* `interact_server_terminal.png` — Серверный терминал с экраном кода и клавиатурой взлома.
-* `interact_backup_generator.png` — Резервный генератор базы с катушкой Тесла.
-* `tile_pressure_plate.png` — Напольная нажимная плита охранного сенсора.
-* `interact_loot_crate.png` — Контейнер припасов с квантовым замком.
-* `interact_safe_box.png` — Сейф с электронным кодовым замком.
-* `loot_classified_briefcase.png` — Дипломат с секретными чертежами корпорации.
-* `loot_isotope_rod.png` — Радиоизотопный зеленый топливный стержень реактора.
-* `loot_vip_pass.png` — VIP-пропуск старшего инженера комплекса.
-* `item_medkit_stim.png` — Нано-стимулятор здоровья (восстанавливает HP).
-* `item_shield_battery.png` — Батарея перезарядки энергощита.
-
-#### 💣 6. Гаджеты и эффекты (Gadgets & VFX) — 15 файлов
-* `vfx_smoke_cloud_tile.png` — Тайл дымовой завесы с рассеянными частицами помех.
-* `gadget_noise_decoy.png` — Шумовой манок с концентрическими звуковыми кольцами.
-* `vfx_footstep_ripple.png` — Акустические круги звука от шагов вора (радиус шума).
-* `vfx_emp_pulse.png` — Взрывная волна электромагнитного импульса с цифровыми помехами.
-* `vfx_plasma_bullet.png` — Неоновый трассер пули/плазменного снаряда турелей и охраны.
-* `vfx_muzzle_flash.png` — Вспышка выстрела из ствола оружия.
-* `item_taser_stunner.png` — Электрошокер ближнего боя с разрядами тока.
-* `item_cyber_deck.png` — Кибер-дека хакера для удаленного взлома систем.
-* `gadget_flashbang.png` — Светошумовая граната.
-* `gadget_hologram_decoy.png` — Голографический маяк-проектор фантома.
-* `vfx_explosion_small.png` — Спрайт-шит взрыва из 4 кадров.
-* `vfx_electric_arc.png` — Электрический разряд на полу при перегрузке систем.
-* `vfx_target_reticle.png` — Прицельная рамка наводки турели на цель.
-* `vfx_blood_splatter.png` — Декаль крови вора на темном полу.
-* `vfx_oil_splatter.png` — Декаль машинного масла от поверженных роботов.
-
-#### 🖥️ 7. Меню, HUD, инвентарь и курсоры (UI) — 17 файлов
-* `ui_game_logo.png` — Неоновый титульный баннер-логотип *«ECHOES OF THE VOID: SHADOW THIEF»*.
-* `ui_buttons_pack.png` — Набор кнопок меню: START MISSION, RETRY HEIST, SECURITY LOGS, SYSTEM EXIT.
-* `ui_ai_status_badges.png` — Индикаторы над головами ботов: `?` (Подозрение), `?!` (Поиск), `!` (Тревога), стрелка (Возврат).
-* `ui_gadget_icons_sheet.png` — 4 иконки способностей HUD (Дым, Манок, ЭМИ, Плащ).
-* `ui_hud_shield_and_siren.png` — Щит игрока (полный и разбитый) + сирена тревоги.
-* `ui_rank_medals.png` — Медали рангов миссии (S, A, B, C).
-* `ui_minimap_frame.png` — Киберпанк-рамка миникарты/радара с координатной сеткой.
-* `ui_minimap_blips.png` — Точки радара: Игрок (зеленый), Враг (красный), Цель (золотой), Камера (циан).
-* `ui_stealth_meter.png` — Полоса уровня скрытности и издаваемого шума.
-* `ui_slot_frame.png` — Рамка слота быстрого доступа (пассивная).
-* `ui_slot_frame_active.png` — Рамка слота быстрого доступа (выбранная/активная).
-* `ui_cursor_default.png` — Игровой курсор-стрелка.
-* `ui_cursor_interact.png` — Игровой курсор взаимодействия с терминалами и рубильниками.
-* `ui_cursor_attack.png` — Игровой курсор атаки/оглушения.
-* `ui_inventory_grid.png` — Сетка инвентаря 4×4 для рюкзака вора.
-* `ui_dialog_panel.png` — Нижняя панель диалогов со слотом под портрет.
-* `ui_prompt_interact_e.png` — Всплывающая плашка клавиши взаимодействия `[E] HACK`.
-* `ui_rating_stars.png` — Золотые звезды оценки прохождения миссии (1–3 звезды).
-
-#### 👤 8. Сюжетные портреты (Portraits 64×64) — 5 файлов
-* `portrait_thief.png` — Аватар Теневого Вора в капюшоне с неоновым визором.
-* `portrait_handler.png` — Аватар связного оператора/хакера с гарнитурой.
-* `portrait_security_ai.png` — Аватар искусственного интеллекта охранной системы.
-* `portrait_ceo_boss.png` — Аватар генерального директора мегакорпорации с золотым кибер-глазом.
-* `portrait_scientist.png` — Аватар информатора / главного инженера лаборатории в очках.
-
-#### 🌌 9. Полноэкранные эффекты и оверлеи (Overlays) — 3 файла
-* `vfx_overlay_nightvision.png` — Тактический зеленый оверлей ночного видения с виньеткой.
-* `vfx_overlay_alarm_vignette.png` — Пульсирующая алая виньетка боевой тревоги.
-* `vfx_overlay_crt_glitch.png` — Цифровые помехи и сканлайны при ЭМИ или перегрузке.
+Подробное описание геймплея и управления — в [`GAME.md`](GAME.md).  
+Документация по тестам — в [`tests/README.md`](tests/README.md).  
+Проектная документация (спецификация требований, ЛР26/ЛР28, задачи) — в папке [`Documentation/`](Documentation/).
 
 ---
 
-## ⚙️ Настройка в Godot 4
+## 🚀 Быстрый запуск
 
-1. **Фильтрация текстур:**
-   * В `Project Settings -> Rendering -> Textures -> Canvas Textures` установите **Default Texture Filter** в значение **`Nearest`**.
-2. **Ориентация спрайтов:**
-   * Все направленные спрайты (Игрок, Охранники, Дроны, Гончая, Камеры, Турели, Пули, Шокер) ориентированы строго вправо (East / $0^\circ$), что соответствует `Vector2.RIGHT` и методу `look_at()`.
+Требуется **Godot 4.3+** (проверено на 4.3 и 4.6.2):
+
+```bash
+git clone https://github.com/mohangg812/echoes-of-the-void.git
+cd echoes-of-the-void
+godot --path .
+```
+
+Либо откройте папку проекта в редакторе Godot и нажмите **F5**.
 
 ---
 
-## 🤖 Команда для Claude Code
+## 📦 Сборка для Windows Desktop
 
-> «Подключи сгенерированные пиксельные спрайты из `res://assets/sprites/` (или `res://assets/sprites_48px/`) ко всем сценам проекта (`Player.tscn`, `StandardGuard.tscn`, `EliteGuard.tscn`, `ScoutDrone.tscn`, `CyberHound.tscn`, `SecurityCamera.tscn`, `SentryTurret.tscn`, `LaserEmitter.tscn`, `Door.tscn`, `Terminal.tscn`, `LevelLoader.gd`, `HUD.tscn`, `Inventory.tscn`, `Minimap.tscn`, `DialogBox.tscn` и `MainMenu.tscn`), сохранив процедурную подсветку `PointLight2D` (с масками `light_flashlight_cone` и `light_radial_glow`), конусы зрения `VisionCone2D` и шейдеры `WorldEnvironment Glow`. Убедись, что у всех `Sprite2D` включен фильтр `TEXTURE_FILTER_NEAREST` и размер масштабируется строго под сетку `48×48`».
+В репозитории настроен пресет экспорта [`export_presets.cfg`](export_presets.cfg) (`Windows Desktop`, встроенный `.pck`, включён фильтр `*.json` для уровней кампании).
+
+Локальная сборка через CLI:
+
+```bash
+mkdir -p export
+godot --headless --path . --export-release "Windows Desktop" export/EchoesOfTheVoid.exe
+```
+
+> **Примечание:** папка `export/` добавлена в `.gitignore` и не попадает в Git.  
+> Готовый артефакт `EchoesOfTheVoid-Windows-x64` также собирается автоматически через GitHub Actions (`.github/workflows/build-windows.yml`).
+
+---
+
+## 🧪 Автотесты и CI/CD
+
+Запуск локально в headless-режиме:
+
+```bash
+godot --headless --path . --script res://tests/unit_tests.gd
+godot --headless --path . --script res://tests/smoke.gd
+godot --headless --path . --script res://tests/replay.gd
+```
+
+Настроенные GitHub Actions workflow:
+* **`.github/workflows/ci.yml`** — валидация JSON всех 7 уровней кампании + прогон `unit_tests.gd` и `smoke.gd` на каждый push / Pull Request в `main` и `develop`.
+* **`.github/workflows/build-windows.yml`** — автоматический экспорт `export/EchoesOfTheVoid.exe` и публикация артефакта сборки.
+
+---
+
+## 📁 Структура проекта
+
+* `core/` — `GridManager`, `TurnManager` (6-фазный конвейер симуляции), `AlarmManager`, `TacticalHistory`
+* `systems/vision/` — `VisionCone2D` (Брезенхэм), `AcousticSystem`
+* `entities/` — игрок, патрульные/элита/киберпёс/дрон, камеры, турели, лазеры, двери, рубильники, лут
+* `levels/` — `LevelLoader`, `MainGame`, слои отрисовки и `levels/campaign/` (**7 уровней** от `level_01_training.json` до `level_07_ai_core.json`)
+* `assets/` — игровые PNG-спрайты (плоские каталоги `player/`, `enemies/`, `security/`, `tiles/`, `interactables/`, `gadgets/`, `ui/`, `portraits/`, `overlays/`, очищенные от хромакея через `tools/prep_assets.py`); исходники HD и 48×48 — в `assets/sprites/` и `assets/sprites_48px/`
+* `ui/`, `vfx/`, `autoload/` — интерфейс, шейдеры, шина событий, процедурный звук
+* `tests/` — headless юнит-тесты, smoke, replay, solver
+* `tools/` — генерация уровней и подготовка ассетов
+* `Documentation/` — спецификация требований, отчёты и задачи
+
+---
+
+## 👥 Команда проекта
+
+| Роль | Участник | GitHub |
+| :--- | :--- | :--- |
+| CEO / Team Lead | Арсений Кеда | [`@arsenigiff-hub`](https://github.com/arsenigiff-hub) |
+| UI/UX Designer | Ангелина Ковчур | [`@angelinakovcur`](https://github.com/angelinakovcur) |
+| Game Developer | Илья Гутман | [`@XXxilusha`](https://github.com/XXxilusha) |
+| Developer / QA | Алексей Шишкану | [`@AlekseyShyshkanu123`](https://github.com/AlekseyShyshkanu123) |
+| Developer / DevOps | Михаил Бондарчук | [`@mohangg812`](https://github.com/mohangg812) |
+
+---
+
+## 🔀 Правила работы с Git
+
+1. **`main`** — стабильная релизная ветка. Прямые коммиты в `main` не используются.
+2. **`develop`** — основная интеграционная ветка разработки.
+3. Новая задача выполняется в отдельной ветке от `develop` (`feat/...`, `fix/...`, `docs/...`, `devops/...`).
+4. Слияние в `develop` / `main` — только через **Pull Request** с код-ревью и прохождением CI.
+5. Формат коммитов: `область: краткое действие` (например: `build: добавлен export_presets.cfg`, `ci: настроены GitHub Actions`, `fix: валидация JSON уровней`).
