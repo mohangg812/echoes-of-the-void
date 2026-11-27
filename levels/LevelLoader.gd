@@ -13,7 +13,127 @@ static func load_file(path: String) -> TurnManager:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		push_error("LevelLoader: битый JSON %s" % path)
 		return null
+	var errors: Array[String] = validate_data(parsed, true)
+	if not errors.is_empty():
+		for err in errors:
+			push_error("LevelLoader (%s): %s" % [path, err])
+		return null
 	return build(parsed)
+
+
+static func _is_valid_vec2(v: Variant) -> bool:
+	if typeof(v) != TYPE_ARRAY:
+		return false
+	var arr: Array = v
+	if arr.size() != 2:
+		return false
+	return (typeof(arr[0]) == TYPE_INT or typeof(arr[0]) == TYPE_FLOAT) \
+		and (typeof(arr[1]) == TYPE_INT or typeof(arr[1]) == TYPE_FLOAT)
+
+
+static func _is_valid_grid_pos(v: Variant, w: int, h: int) -> bool:
+	if not _is_valid_vec2(v):
+		return false
+	var arr: Array = v
+	var x: int = int(arr[0])
+	var y: int = int(arr[1])
+	return x >= 0 and x < w and y >= 0 and y < h
+
+
+static func validate_data(data: Dictionary, require_campaign_fields: bool = false) -> Array[String]:
+	var errors: Array[String] = []
+	if not data.has("layout") or typeof(data["layout"]) != TYPE_ARRAY:
+		errors.append("отсутствует или некорректен массив 'layout'")
+		return errors
+	var layout: Array = data["layout"]
+	if layout.is_empty():
+		errors.append("массив 'layout' пуст")
+		return errors
+
+	var w: int = -1
+	var h: int = layout.size()
+	var has_extraction: bool = false
+	var has_vault: bool = false
+
+	for y in range(h):
+		if typeof(layout[y]) != TYPE_STRING:
+			errors.append("строка layout[%d] не является строкой" % y)
+			continue
+		var row: String = String(layout[y])
+		if row.is_empty():
+			errors.append("строка layout[%d] пуста" % y)
+			continue
+		if w == -1:
+			w = row.length()
+		elif row.length() != w:
+			errors.append("непрямоугольный layout: строка %d имеет длину %d вместо %d" % [y, row.length(), w])
+		for x in range(row.length()):
+			var ch: String = row[x]
+			if not GridManager.CHAR_TO_TILE.has(ch):
+				errors.append("неизвестный символ тайла '%s' в (%d, %d)" % [ch, x, y])
+			elif ch == "E":
+				has_extraction = true
+			elif ch == "G":
+				has_vault = true
+
+	if require_campaign_fields:
+		if not data.has("level_id"):
+			errors.append("отсутствует обязательное поле 'level_id'")
+		if String(data.get("title", "")).strip_edges().is_empty():
+			errors.append("отсутствует или пусто поле 'title'")
+		if int(data.get("par_turns", 0)) <= 0:
+			errors.append("поле 'par_turns' должно быть больше 0")
+		if not has_extraction:
+			errors.append("на карте отсутствует точка эвакуации/старта 'E'")
+		if not has_vault:
+			errors.append("на карте отсутствует цель 'G' (VAULT_FLOOR)")
+
+	if w <= 0:
+		return errors
+
+	var entity_pos_keys: Dictionary = {
+		"doors": "pos",
+		"switches": "pos",
+		"secondary_loot": "pos",
+		"items": "pos",
+		"lasers": "pos",
+		"cameras": "pos",
+		"turrets": "pos",
+		"guards": "start",
+	}
+	for section in entity_pos_keys:
+		if not data.has(section):
+			continue
+		if typeof(data[section]) != TYPE_ARRAY:
+			errors.append("секция '%s' должна быть массивом" % section)
+			continue
+		var pos_key: String = String(entity_pos_keys[section])
+		var items: Array = data[section]
+		for idx in range(items.size()):
+			if typeof(items[idx]) != TYPE_DICTIONARY:
+				errors.append("%s[%d] не является объектом" % [section, idx])
+				continue
+			var item: Dictionary = items[idx]
+			if not _is_valid_grid_pos(item.get(pos_key), w, h):
+				errors.append("%s[%d].%s вне границ карты (%dx%d) или некорректно" % [section, idx, pos_key, w, h])
+			if section == "switches" and not item.has("target_group_id"):
+				errors.append("switches[%d] не содержит 'target_group_id'" % idx)
+			elif section == "items" and not item.has("kind"):
+				errors.append("items[%d] не содержит 'kind'" % idx)
+			elif section == "lasers" and not _is_valid_vec2(item.get("dir")):
+				errors.append("lasers[%d] не содержит корректный вектор 'dir'" % idx)
+			elif section == "cameras" and not _is_valid_vec2(item.get("initial_facing")):
+				errors.append("cameras[%d] не содержит корректный вектор 'initial_facing'" % idx)
+			elif section == "guards" and item.has("waypoints"):
+				if typeof(item["waypoints"]) != TYPE_ARRAY:
+					errors.append("guards[%d].waypoints должен быть массивом" % idx)
+				else:
+					var wps: Array = item["waypoints"]
+					for wi in range(wps.size()):
+						if not _is_valid_grid_pos(wps[wi], w, h):
+							errors.append("guards[%d].waypoints[%d] вне границ карты" % [idx, wi])
+
+	return errors
 
 
 static func _v2(a: Variant) -> Vector2i:
@@ -46,6 +166,11 @@ static func _facing_sequence(initial: Vector2i, mode: String, custom: Array) -> 
 
 
 static func build(data: Dictionary) -> TurnManager:
+	var errors: Array[String] = validate_data(data, false)
+	if not errors.is_empty():
+		for err in errors:
+			push_error("LevelLoader: %s" % err)
+		return null
 	var sim: TurnManager = TurnManager.new()
 	sim.level_data = data
 	var layout: Array = data["layout"]

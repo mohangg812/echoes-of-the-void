@@ -53,6 +53,7 @@ func _init() -> void:
 		"test_style_and_rating",
 		"test_campaign_levels_load",
 		"test_campaign_solutions_replay",
+		"test_level_loader_validation",
 	]
 
 	for name in tests:
@@ -1343,3 +1344,39 @@ func test_campaign_solutions_replay() -> void:
 		check(ok, "solution %d actions are valid (stopped at %d)" % [i + 1, step])
 		eq(sim.result, "won", "solution %d wins" % (i + 1))
 		eq(sim.alarm.times_triggered, 0, "solution %d is alarm-free" % (i + 1))
+
+
+func test_level_loader_validation() -> void:
+	var valid_room: Array = room_layout(5, 5, Vector2i(1, 1), Vector2i(3, 3))
+	var ok_data: Dictionary = {
+		"level_id": 99,
+		"title": "Test",
+		"par_turns": 20,
+		"layout": valid_room,
+	}
+	eq(LevelLoader.validate_data(ok_data, true).size(), 0, "valid campaign data passes")
+
+	var missing_layout: Dictionary = {"level_id": 1, "title": "Bad", "par_turns": 10}
+	check(not LevelLoader.validate_data(missing_layout, false).is_empty(), "missing layout rejected")
+	check(LevelLoader.build(missing_layout) == null, "build returns null on missing layout")
+
+	var jagged: Dictionary = {"layout": ["###", "##", "###"]}
+	check(not LevelLoader.validate_data(jagged, false).is_empty(), "non-rectangular layout rejected")
+
+	var unknown_char: Dictionary = {"layout": ["###", "#?#", "###"]}
+	check(not LevelLoader.validate_data(unknown_char, false).is_empty(), "unknown tile symbol rejected")
+
+	var oob_guard: Dictionary = {
+		"layout": valid_room,
+		"guards": [{"start": [10, 1]}],
+	}
+	check(not LevelLoader.validate_data(oob_guard, false).is_empty(), "out-of-bounds guard rejected")
+
+	var no_objectives: Dictionary = {
+		"level_id": 1,
+		"title": "Empty",
+		"par_turns": 10,
+		"layout": ["###", "#.#", "###"],
+	}
+	check(not LevelLoader.validate_data(no_objectives, true).is_empty(), "missing E and G rejected in campaign mode")
+

@@ -1,0 +1,38 @@
+name: Validate Levels & Godot Tests
+
+on:
+  push:
+    branches: [main, develop, "devops/**", "feat/**", "fix/**"]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  level-validator:
+    name: Campaign Level Validator (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run standalone level validator
+        run: python3 tools/validate_levels.py
+
+  godot-tests:
+    name: Godot 4.3 Headless Unit & Smoke Tests
+    runs-on: ubuntu-latest
+    needs: level-validator
+    env:
+      GODOT_VERSION: "4.3-stable"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip" -O godot.zip
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}_linux.x86_64" /usr/local/bin/godot
+          chmod +x /usr/local/bin/godot
+      - name: Import resources
+        run: godot --headless --path . --import || true
+      - name: Run unit_tests.gd
+        run: godot --headless --path . --script res://tests/unit_tests.gd
+      - name: Run smoke.gd (7 levels)
+        run: godot --headless --path . --script res://tests/smoke.gd
