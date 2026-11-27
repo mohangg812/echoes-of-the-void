@@ -1,14 +1,6 @@
 # Запуск: godot --headless --path . --script res://tests/smoke.gd
-# Проверяет, что все уровни грузятся, рисует ASCII и гоняет несколько ходов.
+# Проверяет, что все уровни кампании (GameState.LEVEL_FILES) грузятся, рисует ASCII и гоняет несколько ходов.
 extends SceneTree
-
-const LEVELS: Array[String] = [
-	"res://levels/campaign/level_01_training.json",
-	"res://levels/campaign/level_02_laser_hall.json",
-	"res://levels/campaign/level_03_vent_network.json",
-	"res://levels/campaign/level_04_elite_sector.json",
-	"res://levels/campaign/level_05_central_vault.json",
-]
 
 
 func ascii(sim: TurnManager) -> String:
@@ -46,9 +38,10 @@ func ascii(sim: TurnManager) -> String:
 
 func _init() -> void:
 	var failed: bool = false
-	for path in LEVELS:
+	for path in GameState.LEVEL_FILES:
 		if not FileAccess.file_exists(path):
 			print("MISSING ", path)
+			failed = true
 			continue
 		var sim: TurnManager = LevelLoader.load_file(path)
 		if sim == null:
