@@ -5,15 +5,26 @@ extends RefCounted
 
 
 static func load_file(path: String) -> TurnManager:
+	var loaded: Dictionary = read_file(path)
+	if loaded.has("error"):
+		push_error(String(loaded["error"]))
+		return null
+	return build(loaded["data"])
+
+
+static func read_file(path: String) -> Dictionary:
 	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		push_error("LevelLoader: не открыть %s" % path)
-		return null
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		push_error("LevelLoader: битый JSON %s" % path)
-		return null
-	return build(parsed)
+		return {"error": "Не удалось открыть файл уровня: %s" % path}
+	var json: JSON = JSON.new()
+	if json.parse(f.get_as_text()) != OK:
+		return {"error": "%s:%d — %s" % [path, json.get_error_line() + 1, json.get_error_message()]}
+	if not (json.data is Dictionary):
+		return {"error": "%s: корневое значение должно быть объектом" % path}
+	var violations: PackedStringArray = LevelSchema.validate(json.data)
+	if not violations.is_empty():
+		return {"error": "%s:\n%s" % [path, "\n".join(violations)]}
+	return {"data": json.data}
 
 
 static func _v2(a: Variant) -> Vector2i:

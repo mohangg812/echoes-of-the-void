@@ -11,6 +11,9 @@ var _panel: PanelContainer
 var _vbox: VBoxContainer
 var _buttons: Array[Button] = []
 var is_open: bool = false
+var _binding_action: OptionButton
+var _binding_label: Label
+var _capture_key: bool = false
 
 
 func _ready() -> void:
@@ -36,7 +39,9 @@ func _ready() -> void:
 
 
 func _clear() -> void:
+	_capture_key = false
 	for c in _vbox.get_children():
+		_vbox.remove_child(c)
 		c.queue_free()
 	_buttons.clear()
 
@@ -46,10 +51,16 @@ func _open(border: Color) -> void:
 	_root.visible = true
 	is_open = true
 	if _buttons.size() > 0:
-		_buttons[0].call_deferred("grab_focus")
+		_focus_button.call_deferred(_buttons[0])
+
+
+func _focus_button(button: Button) -> void:
+	if is_open and is_instance_valid(button) and button.is_inside_tree():
+		button.grab_focus()
 
 
 func close() -> void:
+	_capture_key = false
 	_root.visible = false
 	is_open = false
 
@@ -131,8 +142,94 @@ func show_pause() -> void:
 	_add_button("ПЕРЕЗАПУСК УРОВНЯ  [R]", "restart", UITheme.AMBER)
 	_add_button("БРИФИНГ", "briefing", UITheme.CYAN)
 	_add_button("ЗВУК ВКЛ/ВЫКЛ  [M]", "mute", UITheme.DIM)
+	_add_button("НАСТРОЙКИ", "settings")
 	_add_button("В ГЛАВНОЕ МЕНЮ", "menu", UITheme.RED)
 	_open(UITheme.CYAN)
+
+
+func show_settings() -> void:
+	_clear()
+	_title("НАСТРОЙКИ", UITheme.CYAN)
+	var labels: Dictionary = {"Master": "Общая громкость", "SFX": "Эффекты", "Ambience": "Музыка", "AlarmSiren": "Сирена"}
+	for channel: String in labels:
+		var row := HBoxContainer.new()
+		var label: Label = UITheme.label(labels[channel], 22)
+		label.custom_minimum_size.x = 270
+		row.add_child(label)
+		var slider := HSlider.new()
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.value = GameState.audio_levels[channel]
+		slider.value_changed.connect(_set_volume.bind(channel))
+		slider.drag_ended.connect(func(changed: bool) -> void:
+			if changed:
+				GameState.save_progress())
+		row.add_child(slider)
+		_vbox.add_child(row)
+	var fullscreen := CheckButton.new()
+	fullscreen.text = "Полноэкранный режим"
+	fullscreen.button_pressed = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	fullscreen.toggled.connect(func(enabled: bool) -> void:
+		GameState.fullscreen = enabled
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
+		GameState.save_progress())
+	_vbox.add_child(fullscreen)
+	var names: Array[String] = ["Вверх", "Влево", "Вниз", "Вправо", "Пропуск хода", "Взаимодействие",
+		"Шокер", "Дым", "Манок", "ЭМИ", "Плащ", "Откат"]
+	_binding_action = OptionButton.new()
+	_binding_action.custom_minimum_size.y = 46
+	var i: int = 0
+	for id: String in GameState.REBINDABLE:
+		_binding_action.add_item(names[i])
+		_binding_action.set_item_metadata(i, id)
+		i += 1
+	_binding_action.item_selected.connect(func(_index: int) -> void: _show_binding())
+	_vbox.add_child(_binding_action)
+	_binding_label = UITheme.label("", 19, UITheme.TEXT)
+	_vbox.add_child(_binding_label)
+	_show_binding()
+	_add_button("НАЗНАЧИТЬ КЛАВИШУ", "bind").pressed.connect(func() -> void:
+		_capture_key = true
+		_binding_label.text = "Нажмите новую клавишу (Esc — отмена).")
+	_add_button("СБРОСИТЬ КЛАВИШИ", "reset_bindings").pressed.connect(func() -> void:
+		GameState.rebinds.clear()
+		GameState.save_progress()
+		_show_binding())
+	_add_button("НАЗАД  [Esc]", "back_to_pause")
+	_open(UITheme.CYAN)
+
+
+func _show_binding() -> void:
+	var id: String = _binding_action.get_selected_metadata()
+	var key: int = int(GameState.rebinds.get(id, GameState.REBINDABLE[id]))
+	_binding_label.text = "Текущая клавиша: %s" % OS.get_keycode_string(key)
+
+
+func _input(event: InputEvent) -> void:
+	if not _capture_key or not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	get_viewport().set_input_as_handled()
+	_capture_key = false
+	var key: int = event.physical_keycode
+	if key != KEY_ESCAPE and not GameState.set_binding(_binding_action.get_selected_metadata(), key):
+		_binding_label.text = "Эта клавиша уже занята или зарезервирована."
+	else:
+		_show_binding()
+
+
+func _set_volume(volume: float, channel: String) -> void:
+	GameState.audio_levels[channel] = int(volume)
+	ProceduralSFX.apply_audio_levels()
+
+
+func show_load_error(message: String) -> void:
+	_clear()
+	_title("НЕ УДАЛОСЬ ЗАГРУЗИТЬ МИССИЮ", UITheme.RED, 32)
+	var detail := RichTextLabel.new()
+	detail.text = message
+	detail.custom_minimum_size = Vector2(0, 280)
+	_vbox.add_child(detail)
+	_add_button("В ГЛАВНОЕ МЕНЮ  [Esc]", "menu")
+	_open(UITheme.RED)
 
 
 func show_victory(stats: Dictionary, has_next: bool) -> void:
@@ -234,12 +331,15 @@ func _slam() -> void:
 	tw.tween_property(_panel, "position", base, 0.06)
 
 
-func show_defeat(reason: String) -> void:
+func show_defeat(reason: String, turns: int, chips: int, chips_total: int) -> void:
 	_clear()
 	_title("МИССИЯ ПРОВАЛЕНА", UITheme.RED, 42)
 	var l := UITheme.label(reason, 24, UITheme.TEXT)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_vbox.add_child(l)
+	var tally := UITheme.label("Ходов: %d   Чипы: %d/%d   Ранг: —" % [turns, chips, chips_total], 20)
+	tally.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_vbox.add_child(tally)
 	var h := UITheme.label("Игра детерминирована: в провале виноват расчёт, а не случай. Откат хода вернёт вас на такт назад.", 16, UITheme.DIM)
 	h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -254,7 +354,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if not is_open or not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	var k: InputEventKey = event
-	match k.physical_keycode:
+	match GameState.gameplay_key(k.physical_keycode):
 		KEY_R:
 			for b in _buttons:
 				if "[R]" in b.text:

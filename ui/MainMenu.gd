@@ -192,6 +192,8 @@ func _ready() -> void:
 	_build_levels()
 	_build_achievements()
 	_show("main", false)
+	if GameState.profile_warning != "":
+		_show_profile_warning()
 	var cl := CanvasLayer.new()
 	cl.layer = 60
 	add_child(cl)
@@ -247,9 +249,17 @@ func _build_main() -> void:
 	add_child(box)
 	_screens["main"] = box
 	var next_idx: int = clampi(GameState.unlocked - 1, 0, GameState.LEVEL_FILES.size() - 1)
+	var checkpoint: Dictionary = RunCheckpoint.read()
+	var resume_button: Button = null
+	if not checkpoint.is_empty() and int(checkpoint["level"]) < GameState.unlocked:
+		var index: int = int(checkpoint["level"])
+		resume_button = _btn("↻  ВОЗОБНОВИТЬ МИССИЮ %d" % (index + 1), UITheme.GREEN, func() -> void:
+			GameState.resume_requested = true
+			_start(index), 24)
+		box.add_child(resume_button)
 	var cont: Button = _btn("▶  %s" % ("ПРОДОЛЖИТЬ: МИССИЯ %d" % (next_idx + 1) if GameState.unlocked > 1 else "НАЧАТЬ ИГРУ"), UITheme.GREEN, func() -> void: _start(next_idx), 28)
 	box.add_child(cont)
-	_first_button = cont
+	_first_button = resume_button if resume_button != null else cont
 	box.add_child(_btn("▦  ВЫБОР МИССИИ", UITheme.CYAN, func() -> void: _show("levels", true)))
 	box.add_child(_btn("★  ДОСТИЖЕНИЯ  %d/%d" % [GameState.achievements.size(), GameState.ACHIEVEMENTS.size()], UITheme.GOLD, func() -> void: _show("ach", true)))
 	box.add_child(_btn("✕  ВЫХОД", UITheme.RED, func() -> void: get_tree().quit()))
@@ -282,12 +292,34 @@ func _build_main() -> void:
 		b.position = Vector2(210, y)
 		p.add_child(b)
 		y += 28.0
-	var legend: Label = UITheme.label("Яркий красный — прямое обнаружение (тревога).\nЖёлтый — подозрение. Зоны показывают, что сработает в СЛЕДУЮЩЕМ такте.", 15, UITheme.DIM)
+	var legend: Label = UITheme.label("Яркий красный — прямое обнаружение (тревога).\nЖёлтый — подозрение. Зоны — прогноз на случай ожидания.", 15, UITheme.TEXT)
 	legend.position = Vector2(20, y + 10)
 	p.add_child(legend)
 	var credits: Label = UITheme.label("Ассеты: github.com/mohangg812/echoes-of-the-void", 13, UITheme.DIM)
 	credits.position = Vector2(20, y + 70)
 	p.add_child(credits)
+
+
+func _show_profile_warning() -> void:
+	if GameState.needs_profile_reset:
+		var confirm := ConfirmationDialog.new()
+		confirm.title = "Восстановление профиля"
+		confirm.dialog_text = GameState.profile_warning
+		confirm.ok_button_text = "Создать новый"
+		confirm.cancel_button_text = "Без записи"
+		confirm.confirmed.connect(func() -> void:
+			if GameState.confirm_new_profile():
+				ProceduralSFX.apply_audio_levels()
+				SceneTransition.change_scene("res://ui/MainMenu.tscn"))
+		add_child(confirm)
+		confirm.popup_centered()
+	else:
+		var notice := AcceptDialog.new()
+		notice.title = "Восстановление профиля"
+		notice.dialog_text = GameState.profile_warning
+		GameState.profile_warning = ""
+		add_child(notice)
+		notice.popup_centered()
 
 
 func _build_levels() -> void:

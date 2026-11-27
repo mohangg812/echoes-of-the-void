@@ -32,11 +32,29 @@ var best: Dictionary = {}             # "1" -> {"rank": "A", "turns": 40, "score
 var sfx_muted: bool = false
 var achievements: Dictionary = {}     # id -> true
 var level_titles: Array[String] = []
+var resume_requested: bool = false
+var profile_warning: String = ""
+var needs_profile_reset: bool = false
+var audio_levels: Dictionary = {"Master": 100, "SFX": 100, "Ambience": 100, "AlarmSiren": 100}
+var fullscreen: bool = false
+var rebinds: Dictionary = {}
+# Идентификатор действия -> физическая клавиша, на которую сводится ввод.
+const REBINDABLE: Dictionary = {
+	"up": KEY_W, "left": KEY_A, "down": KEY_S, "right": KEY_D, "wait": KEY_Z,
+	"interact": KEY_E, "shock": KEY_F, "smoke": KEY_1, "decoy": KEY_2,
+	"emp": KEY_3, "cloak": KEY_4, "undo": KEY_BACKSPACE,
+}
+const RESERVED_KEYS: Array[int] = [
+	KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_SPACE, KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER,
+	KEY_R, KEY_H, KEY_M, KEY_T, KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_META, KEY_TAB, KEY_NONE,
+]
 
 
 func _ready() -> void:
 	_load_titles()
 	load_progress()
+	if fullscreen and DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
 
 func _load_titles() -> void:
@@ -52,25 +70,112 @@ func _load_titles() -> void:
 
 
 func load_progress() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return
-	var f: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if f == null:
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
-		return
-	unlocked = clampi(int(parsed.get("unlocked", 1)), 1, LEVEL_FILES.size())
+	var parsed: Variant = LocalSave.read_json(SAVE_PATH)
+	if not valid_progress(parsed):
+		if not FileAccess.file_exists(SAVE_PATH) and not FileAccess.file_exists(SAVE_PATH + ".bak"):
+			return
+		parsed = LocalSave.read_json(SAVE_PATH + ".bak")
+		if not valid_progress(parsed):
+			needs_profile_reset = true
+			profile_warning = "Профиль повреждён. Можно создать новый или продолжить без записи прогресса."
+			return
+		profile_warning = "Основной профиль недоступен. Загружена резервная копия."
+	unlocked = int(parsed.get("unlocked", 1))
 	best = parsed.get("best", {})
-	sfx_muted = bool(parsed.get("muted", false))
+	sfx_muted = parsed.get("muted", false)
 	achievements = parsed.get("ach", {})
+	for channel: String in audio_levels:
+		var levels: Dictionary = parsed.get("audio", {})
+		audio_levels[channel] = int(levels.get(channel, 100))
+	fullscreen = parsed.get("fullscreen", false)
+	rebinds = parsed.get("rebinds", {})
+
+
+func valid_progress(value: Variant) -> bool:
+	if not (value is Dictionary) or not LevelSchema.integer(value.get("unlocked"), 1, LEVEL_FILES.size()):
+		return false
+	if not (value.get("best", {}) is Dictionary) or not (value.get("ach", {}) is Dictionary) \
+			or not (value.get("muted", false) is bool) or not (value.get("audio", {}) is Dictionary) \
+			or not (value.get("fullscreen", false) is bool) or not (value.get("rebinds", {}) is Dictionary):
+		return false
+	for key: String in value.get("best", {}):
+		var record: Variant = value["best"][key]
+		if not key.is_valid_int() or int(key) < 1 or int(key) > LEVEL_FILES.size() or not (record is Dictionary):
+			return false
+		if not RANK_ORDER.has(record.get("rank")) or record.get("rank") == "" \
+				or not LevelSchema.integer(record.get("turns"), 0, 1000000) \
+				or not LevelSchema.integer(record.get("score"), 0, 2147483647):
+			return false
+	for key: String in value.get("ach", {}):
+		if not (value["ach"][key] is bool):
+			return false
+	for key: String in value.get("audio", {}):
+		if not LevelSchema.integer(value["audio"][key], 0, 100):
+			return false
+	for id: String in value.get("rebinds", {}):
+		var raw: Variant = value["rebinds"][id]
+		if not LevelSchema.integer(raw, 1, 0x7fffffff) or not can_bind(id, int(raw), value["rebinds"]):
+			return false
+	return true
+
+
+func confirm_new_profile() -> bool:
+	if FileAccess.file_exists(SAVE_PATH):
+		if DirAccess.rename_absolute(SAVE_PATH, SAVE_PATH + ".corrupt") != OK:
+			push_warning("Не удалось сохранить копию повреждённого профиля")
+			return false
+	unlocked = 1
+	best = {}
+	achievements = {}
+	rebinds = {}
+	audio_levels = {"Master": 100, "SFX": 100, "Ambience": 100, "AlarmSiren": 100}
+	needs_profile_reset = false
+	profile_warning = ""
+	save_progress()
+	return true
 
 
 func save_progress() -> void:
-	var f: FileAccess = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if f == null:
+	if needs_profile_reset:
 		return
-	f.store_string(JSON.stringify({"unlocked": unlocked, "best": best, "muted": sfx_muted, "ach": achievements}))
+	var previous: Variant = LocalSave.read_json(SAVE_PATH)
+	if valid_progress(previous) and LocalSave.replace_json(SAVE_PATH + ".bak", previous) != OK:
+		push_warning("Не удалось обновить резервную копию профиля")
+		return
+	if LocalSave.replace_json(SAVE_PATH, {
+		"unlocked": unlocked, "best": best, "muted": sfx_muted, "ach": achievements, "audio": audio_levels,
+		"fullscreen": fullscreen, "rebinds": rebinds,
+	}) != OK:
+		push_warning("Не удалось сохранить игровой профиль")
+
+
+func can_bind(id: String, key: int, bindings: Dictionary) -> bool:
+	if not REBINDABLE.has(id) or key in RESERVED_KEYS:
+		return false
+	for other: String in REBINDABLE:
+		if other != id and (int(REBINDABLE[other]) == key or int(bindings.get(other, REBINDABLE[other])) == key):
+			return false
+	return true
+
+
+func set_binding(id: String, key: int) -> bool:
+	if not can_bind(id, key, rebinds):
+		return false
+	if key == int(REBINDABLE[id]):
+		rebinds.erase(id)
+	else:
+		rebinds[id] = key
+	save_progress()
+	return true
+
+
+func gameplay_key(physical_key: int) -> int:
+	for id: String in rebinds:
+		if int(rebinds[id]) == physical_key:
+			return int(REBINDABLE[id])
+		if int(REBINDABLE[id]) == physical_key:
+			return KEY_NONE
+	return physical_key
 
 
 func record_result(level_index: int, rank: String, turns: int, score: int) -> void:

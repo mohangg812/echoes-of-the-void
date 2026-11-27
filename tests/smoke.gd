@@ -2,15 +2,6 @@
 # Проверяет, что все уровни грузятся, рисует ASCII и гоняет несколько ходов.
 extends SceneTree
 
-const LEVELS: Array[String] = [
-	"res://levels/campaign/level_01_training.json",
-	"res://levels/campaign/level_02_laser_hall.json",
-	"res://levels/campaign/level_03_vent_network.json",
-	"res://levels/campaign/level_04_elite_sector.json",
-	"res://levels/campaign/level_05_central_vault.json",
-]
-
-
 func ascii(sim: TurnManager) -> String:
 	var rows: Array[String] = []
 	for y in range(sim.grid.height):
@@ -46,9 +37,10 @@ func ascii(sim: TurnManager) -> String:
 
 func _init() -> void:
 	var failed: bool = false
-	for path in LEVELS:
+	for path in GameState.LEVEL_FILES:
 		if not FileAccess.file_exists(path):
 			print("MISSING ", path)
+			failed = true
 			continue
 		var sim: TurnManager = LevelLoader.load_file(path)
 		if sim == null:
@@ -62,6 +54,7 @@ func _init() -> void:
 			var r: Dictionary = sim.execute_player_turn({"type": "wait"})
 			if not r["ok"]:
 				print("wait failed")
+				failed = true
 		var pv: Dictionary = sim.compute_preview()
 		print("turn=", sim.turn_number, " alarm=", sim.alarm.state, " preview guards=", pv["guards"].size())
 	quit(1 if failed else 0)

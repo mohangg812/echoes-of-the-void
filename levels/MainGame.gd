@@ -50,6 +50,7 @@ var busy: bool = false
 var aim_slot: int = 0
 var aim_cell: Vector2i = Vector2i.ZERO
 var _last_alarm: bool = false
+var _last_alarm_state: int = -1
 var _shake: float = 0.0
 var _punch: float = 0.0
 var _clock: float = 0.0
@@ -61,6 +62,8 @@ var _intro_max: float = 40.0
 var _line_idx: Dictionary = {}
 var _say_cd: float = 0.0
 var _slowmo_token: int = 0
+var _run_actions: Array = []
+var _checkpoint_warning: String = ""
 
 
 # ───────────────────────── построение сцены ─────────────────────────
@@ -80,7 +83,10 @@ func _ready() -> void:
 		elif a.begins_with("--actions="):
 			actions = a.substr(10)
 	_auto_mode = shot_path != ""
-	_load_level(not _auto_mode)
+	var resume: bool = GameState.resume_requested and not _auto_mode
+	GameState.resume_requested = false
+	if not _load_level(not _auto_mode, resume):
+		return
 	ProceduralSFX.start_music()
 	if _auto_mode:
 		await _run_auto(actions, shot_path)
@@ -88,6 +94,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	ProceduralSFX.stop_siren()
 
 
 func _build_scene() -> void:
@@ -147,13 +154,36 @@ func _build_scene() -> void:
 
 	hud = HUD.new()
 	add_child(hud)
+	EventBus.hud_refresh.connect(hud.update_from)
 	modal = PauseAndResultModal.new()
 	add_child(modal)
 	modal.action_chosen.connect(_on_modal_action)
 
 
-func _load_level(show_briefing: bool) -> void:
-	sim = LevelLoader.load_file(GameState.LEVEL_FILES[level_index])
+func _load_level(show_briefing: bool, resume: bool = false) -> bool:
+	ProceduralSFX.stop_siren()
+	_run_actions = []
+	_checkpoint_warning = ""
+	if level_index < 0 or level_index >= GameState.LEVEL_FILES.size():
+		modal.show_load_error("Неверный номер миссии.")
+		return false
+	var loaded: Dictionary = LevelLoader.read_file(GameState.LEVEL_FILES[level_index])
+	if loaded.has("error"):
+		sim = null
+		modal.show_load_error(String(loaded["error"]))
+		return false
+	if resume:
+		var checkpoint: Dictionary = RunCheckpoint.read()
+		sim = RunCheckpoint.restore(checkpoint, level_index, loaded["data"])
+		if sim != null:
+			_run_actions = checkpoint["actions"].duplicate()
+			show_briefing = false
+		else:
+			_checkpoint_warning = "Сохранение миссии повреждено или несовместимо. Миссия начата заново."
+	else:
+		sim = null
+	if sim == null:
+		sim = LevelLoader.build(loaded["data"])
 	_result_shown = false
 	aim_slot = 0
 	threat.aim_slot = 0
@@ -175,6 +205,7 @@ func _load_level(show_briefing: bool) -> void:
 	hud.setup(sim)
 	hud.set_level(String(sim.level_data.get("title", "")))
 	_last_alarm = false
+	_last_alarm_state = -1
 	_sync_views(false)
 	_refresh_all()
 	_start_intro()
@@ -182,6 +213,9 @@ func _load_level(show_briefing: bool) -> void:
 		modal.show_briefing(sim.level_data, level_index)
 	else:
 		_say_level_intro()
+	if _checkpoint_warning != "":
+		hud.flash_message(_checkpoint_warning, UITheme.AMBER)
+	return true
 
 
 func _start_intro() -> void:
@@ -407,7 +441,10 @@ func _sync_views(animate: bool) -> void:
 			ProceduralSFX.start_siren()
 		else:
 			ProceduralSFX.stop_siren()
-	lighting.set_alarm(alarm_now)
+	if sim.alarm.state != _last_alarm_state:
+		_last_alarm_state = sim.alarm.state
+		EventBus.alarm_state_changed.emit(sim.alarm.state)
+	lighting.set_alarm(sim.alarm.state, sim.alarm.cooldown)
 	bg.alarm = alarm_now
 
 
@@ -423,13 +460,13 @@ func _refresh_all() -> void:
 		threat.set_preview(sim.compute_preview())
 	else:
 		threat.set_preview({})
-	hud.update_from(sim, int(threat.danger.get(sim.player.grid_pos, 0)))
+	EventBus.hud_refresh.emit(sim, int(threat.danger.get(sim.player.grid_pos, 0)))
 
 
 # ───────────────────────── ввод ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
-	if modal.is_open or _auto_mode:
+	if modal.is_open or _auto_mode or sim == null:
 		return
 	if event is InputEventMouseMotion and aim_slot > 0:
 		aim_cell = sim.grid.world_to_grid(world.get_local_mouse_position())
@@ -446,7 +483,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed:
 		return
 	var k: InputEventKey = event
-	var code: int = k.physical_keycode
+	var code: int = GameState.gameplay_key(k.physical_keycode)
 	if k.echo and code in [KEY_ESCAPE, KEY_R, KEY_BACKSPACE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_M, KEY_E, KEY_F, KEY_T, KEY_H]:
 		return
 	if code == KEY_ESCAPE:
@@ -562,6 +599,7 @@ func _preflight_gadget(slot: int, target: Vector2i) -> Dictionary:
 func _do_action(action: Dictionary) -> void:
 	if busy or sim.result != "":
 		return
+	var acted_sim: TurnManager = sim
 	var hp_before: int = sim.player.hp
 	var r: Dictionary = sim.execute_player_turn(action)
 	if not bool(r["ok"]):
@@ -573,6 +611,10 @@ func _do_action(action: Dictionary) -> void:
 		_sync_views(true)
 		return
 	busy = true
+	_run_actions.append(RunCheckpoint.pack_action(action))
+	EventBus.turn_completed.emit(sim.turn_number)
+	if sim.result == "":
+		_save_checkpoint()
 	if action["type"] == "gadget":
 		hud.loadout.kick(int(action["slot"]))
 	if String(r["msg"]) != "":
@@ -583,17 +625,23 @@ func _do_action(action: Dictionary) -> void:
 		hud.loadout.shield_hit = 1.0
 	_refresh_all()
 	await get_tree().create_timer(0.13).timeout
+	if sim != acted_sim:
+		return
 	busy = false
 	if sim.result != "" and not _result_shown:
 		_result_shown = true
 		await get_tree().create_timer(0.7, true, false, true).timeout
-		_show_result()
+		if sim == acted_sim and sim.result != "":
+			_show_result()
 
 
 func _undo() -> void:
 	if busy:
 		return
 	if sim.undo():
+		if not _run_actions.is_empty():
+			_run_actions.pop_back()
+		_save_checkpoint()
 		ProceduralSFX.play("undo")
 		_result_shown = false
 		Engine.time_scale = 1.0
@@ -613,7 +661,9 @@ func _restart() -> void:
 	if modal.is_open:
 		modal.close()
 	Engine.time_scale = 1.0
-	_load_level(false)
+	_clear_checkpoint()
+	if not _load_level(false):
+		return
 	ProceduralSFX.play("select")
 	lighting.kick_glitch(0.8)
 	hud.flash_message("Рестарт", UITheme.CYAN)
@@ -622,6 +672,7 @@ func _restart() -> void:
 func _show_result() -> void:
 	ProceduralSFX.stop_siren()
 	if sim.result == "won":
+		_clear_checkpoint()
 		var stats: Dictionary = {
 			"rank": sim.get_rating(), "turns": sim.turn_number, "par": int(sim.level_data.get("par_turns", 0)),
 			"alarms": sim.alarm.times_triggered, "chips": sim.player.chips, "chips_total": sim.chips_total,
@@ -630,10 +681,26 @@ func _show_result() -> void:
 		GameState.record_result(level_index, String(stats["rank"]), sim.turn_number, sim.player.score)
 		var got: Array[String] = GameState.check_victory_achievements(sim, level_index)
 		stats["achievements"] = got
+		EventBus.mission_accomplished.emit(stats)
 		modal.show_victory(stats, GameState.has_next_level())
 	elif sim.result == "lost":
+		EventBus.mission_failed.emit(sim.fail_reason)
 		ProceduralSFX.play("fail")
-		modal.show_defeat(sim.fail_reason)
+		modal.show_defeat(sim.fail_reason, sim.turn_number, sim.player.chips, sim.chips_total)
+
+
+func _save_checkpoint() -> void:
+	if _auto_mode or GameState.needs_profile_reset:
+		return
+	if RunCheckpoint.store(level_index, _run_actions, sim.undo_count) != OK:
+		hud.flash_message("Не удалось сохранить ход на диск", UITheme.AMBER)
+
+
+func _clear_checkpoint() -> void:
+	if _auto_mode or GameState.needs_profile_reset or RunCheckpoint.read().get("level") != level_index:
+		return
+	if DirAccess.remove_absolute(RunCheckpoint.PATH) != OK:
+		push_warning("Не удалось удалить сохранение завершённой миссии")
 
 
 func _on_modal_action(action: String) -> void:
@@ -648,6 +715,11 @@ func _on_modal_action(action: String) -> void:
 			modal.show_briefing(sim.level_data, level_index)
 		"mute":
 			ProceduralSFX.toggle_mute()
+		"settings":
+			modal.show_settings()
+		"back_to_pause":
+			GameState.save_progress()
+			modal.show_pause()
 		"undo":
 			modal.close()
 			_undo()
@@ -893,6 +965,7 @@ func _handle_events(events: Array) -> void:
 				if int(e["mult"]) >= 4 and GameState.unlock("showman"):
 					_announce_achievement("showman")
 			"won":
+				ProceduralSFX.play("win")
 				fx.burst(pc, Color(0.4, 2.0, 1.2), 80, 380.0, 1.4, 0.16, 180.0, Vector2.RIGHT, 100.0)
 				fx.ring(pc, 9.0 * TS, Color(0.4, 2.0, 1.2), 1.0, 4.0, true)
 				punch(0.05)

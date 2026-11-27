@@ -19,18 +19,21 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	for i in range(10):
 		var p: AudioStreamPlayer = AudioStreamPlayer.new()
-		p.bus = "Master"
+		p.bus = "SFX"
 		add_child(p)
 		_players.append(p)
 	_siren = AudioStreamPlayer.new()
+	_siren.bus = "AlarmSiren"
 	_siren.volume_db = -17.0
 	add_child(_siren)
 	_music = AudioStreamPlayer.new()
+	_music.bus = "Ambience"
 	_music.volume_db = -17.0
 	add_child(_music)
 	_build_all()
 	muted = GameState.sfx_muted
 	_apply_mute()
+	apply_audio_levels()
 
 
 func _rnd() -> float:
@@ -247,3 +250,11 @@ func toggle_mute() -> void:
 
 func _apply_mute() -> void:
 	AudioServer.set_bus_mute(0, muted)
+
+
+func apply_audio_levels() -> void:
+	for channel: String in GameState.audio_levels:
+		var index: int = AudioServer.get_bus_index(channel)
+		if index >= 0:
+			var gain: float = float(GameState.audio_levels[channel]) / 100.0
+			AudioServer.set_bus_volume_db(index, linear_to_db(maxf(gain, 0.0001)))
