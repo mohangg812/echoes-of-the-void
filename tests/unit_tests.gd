@@ -13,7 +13,11 @@ var failures: int = 0
 var current_test: String = ""
 
 
-func _init() -> void:
+func _initialize() -> void:
+	call_deferred("_run_tests")
+
+
+func _run_tests() -> void:
 	var tests: Array[String] = [
 		"test_grid_layout_and_bounds",
 		"test_grid_walkability",
@@ -52,6 +56,8 @@ func _init() -> void:
 		"test_snapshot_undo_and_preview",
 		"test_style_and_rating",
 		"test_campaign_levels_load",
+		"test_invalid_level_data",
+		"test_profile_and_checkpoint",
 		"test_campaign_solutions_replay",
 	]
 
@@ -582,6 +588,7 @@ func test_invalid_action_keeps_turn() -> void:
 	check(not r["ok"], "moving into wall fails")
 	eq(sim.turn_number, 0, "invalid move does not consume a turn")
 	v2(sim.player.grid_pos, Vector2i(1, 1), "invalid move does not move player")
+	v2(sim.player.facing, Vector2i.RIGHT, "invalid move does not turn player")
 	eq(sim.history.size(), 0, "invalid move does not push history")
 	check((r["events"] as Array).is_empty(), "invalid move produces no events")
 
@@ -1320,15 +1327,16 @@ func test_campaign_solutions_replay() -> void:
 	check(solver_script != null, "solver script loads")
 	if solver_script == null:
 		return
-	# Levels 1-6 have stable strict solutions. Level 7's committed solution predates
-	# the current AI rules and is tracked separately by tests/replay.gd.
-	for i in range(GameState.LEVEL_FILES.size() - 1):
+	for i in range(GameState.LEVEL_FILES.size()):
 		var path: String = "res://tests/solutions/level_%d.txt" % (i + 1)
 		check(FileAccess.file_exists(path), "solution exists: %s" % path)
 		if not FileAccess.file_exists(path):
 			continue
 		var line: String = FileAccess.get_file_as_string(path).strip_edges()
 		var sim: TurnManager = LevelLoader.load_file(GameState.LEVEL_FILES[i])
+		check(sim != null, "replay level loads")
+		if sim == null:
+			continue
 		var step: int = 0
 		var ok: bool = true
 		for token in line.split(" ", false):
@@ -1343,3 +1351,75 @@ func test_campaign_solutions_replay() -> void:
 		check(ok, "solution %d actions are valid (stopped at %d)" % [i + 1, step])
 		eq(sim.result, "won", "solution %d wins" % (i + 1))
 		eq(sim.alarm.times_triggered, 0, "solution %d is alarm-free" % (i + 1))
+
+
+func test_invalid_level_data() -> void:
+	var loaded := LevelLoader.read_file(GameState.LEVEL_FILES[0])
+	check(loaded.has("data"), "training JSON is valid")
+	if not loaded.has("data"):
+		return
+	var data: Dictionary = loaded["data"]
+	var base := "user://level-test-%d-%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
+	check(LevelLoader.read_file(base).has("error"), "missing level reports structured error")
+	var f: FileAccess = FileAccess.open(base, FileAccess.WRITE)
+	f.store_string("{")
+	f.close()
+	check(LevelLoader.read_file(base).has("error"), "invalid JSON reports structured error")
+	f = FileAccess.open(base, FileAccess.WRITE)
+	f.store_string("{}")
+	f.close()
+	check(LevelLoader.read_file(base).has("error"), "missing mandatory keys rejected")
+	DirAccess.remove_absolute(base)
+	for row: Array in [
+			["layout", ["E.G", ".."], "nonrectangular layout"],
+			["layout", ["E?G"], "unknown tile"],
+			["layout", ["E.#.G"], "unreachable vault"],
+			["guards", [{"start": [999, 0]}], "out-of-bounds guard"],
+			["cameras", [{"pos": [1, 1], "initial_facing": [0, 0]}], "invalid direction"],
+			["switches", [{"pos": [2, 1], "target_group_id": "unbound"}], "unknown power group"],
+	]:
+		var changed: Dictionary = data.duplicate(true)
+		changed[row[0]] = row[1]
+		check(not LevelSchema.validate(changed).is_empty(), row[2])
+	var separated: Dictionary = data.duplicate(true)
+	separated["layout"] = ["E.#.G"]
+	for key: String in LevelSchema.POS_FIELDS:
+		separated[key] = []
+	check("маршрута" in "\n".join(LevelSchema.validate(separated)), "geometric disconnection is reported")
+
+
+func test_profile_and_checkpoint() -> void:
+	var state: Node = root.get_node("GameState")
+	check(state.call("valid_progress", {"unlocked": 1, "best": {}}), "legacy profile remains valid")
+	check(not state.call("valid_progress", {"unlocked": 4, "best": []}), "wrong profile type rejected")
+	check(not state.call("valid_progress", {"unlocked": 2, "audio": {"Master": "loud"}}), "invalid audio value rejected")
+	check(not state.call("valid_progress", {"unlocked": 2, "best": {"1": {"rank": "X", "turns": 5, "score": 10}}}), "invalid rank rejected")
+	check(state.call("can_bind", "up", KEY_I, {}), "available key can be assigned")
+	check(not state.call("can_bind", "up", KEY_ESCAPE, {}), "reserved key cannot be assigned")
+	check(not state.call("can_bind", "up", KEY_F, {}), "existing action key cannot be assigned")
+	var loaded := LevelLoader.read_file(GameState.LEVEL_FILES[0])
+	if not loaded.has("data"):
+		check(false, "checkpoint needs valid training map")
+		return
+	var original: TurnManager = LevelLoader.build(loaded["data"])
+	var actions: Array = [{"type": "wait"}, {"type": "move", "dir": Vector2i.RIGHT}]
+	for action: Dictionary in actions:
+		check(original.execute_player_turn(action)["ok"], "checkpoint test action accepted")
+	var encoded: Array = actions.map(RunCheckpoint.pack_action)
+	var path := "user://checkpoint-test-%d-%d.json" % [OS.get_process_id(), Time.get_ticks_usec()]
+	eq(RunCheckpoint.store(0, encoded.slice(0, 1), 1, path), OK, "checkpoint created")
+	eq(RunCheckpoint.store(0, encoded, 2, path), OK, "checkpoint replaced")
+	var saved: Dictionary = RunCheckpoint.read(path)
+	var resumed: TurnManager = RunCheckpoint.restore(saved, 0, loaded["data"])
+	check(resumed != null, "checkpoint is replayable")
+	if resumed != null:
+		eq(resumed.snapshot(), original.snapshot(), "simulation restored exactly")
+		eq(resumed.undo_count, 2, "undo counter preserved")
+		check(resumed.undo(), "restored history supports undo")
+	var invalid: Dictionary = saved.duplicate(true)
+	invalid["map_hash"] = "changed"
+	eq(RunCheckpoint.restore(invalid, 0, loaded["data"]), null, "changed level rejected")
+	invalid = saved.duplicate(true)
+	invalid["actions"] = [{"type": "move", "dir": [1, 1]}]
+	eq(RunCheckpoint.restore(invalid, 0, loaded["data"]), null, "invalid action rejected")
+	DirAccess.remove_absolute(path)

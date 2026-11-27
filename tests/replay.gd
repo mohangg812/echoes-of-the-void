@@ -14,6 +14,10 @@ func _init() -> void:
 			continue
 		var line: String = FileAccess.get_file_as_string(path).strip_edges()
 		var sim: TurnManager = LevelLoader.load_file(GameState.LEVEL_FILES[i])
+		if sim == null:
+			print("уровень %d: ошибка загрузки" % (i + 1))
+			bad += 1
+			continue
 		var n: int = 0
 		for tok in line.split(" ", false):
 			var r: Dictionary = sim.execute_player_turn(solver.str_to_action(tok))

@@ -1,0 +1,44 @@
+name: Godot checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: false
+      - run: godot --headless --editor --path . --import
+      - run: godot --headless --path . --script res://tests/unit_tests.gd
+      - run: godot --headless --path . --script res://tests/session_tests.gd
+      - run: godot --headless --path . --script res://tests/smoke.gd
+      - run: godot --headless --path . --script res://tests/replay.gd
+
+  windows:
+    if: github.event_name == 'workflow_dispatch'
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: true
+      - run: godot --headless --editor --path . --import
+      - run: mkdir -p export
+      - run: godot --headless --path . --export-release "Windows Desktop" export/EchoesOfTheVoid.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EchoesOfTheVoid-Windows-x64
+          path: export/EchoesOfTheVoid.exe
+          if-no-files-found: error

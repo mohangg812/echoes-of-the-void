@@ -11,7 +11,7 @@ const RED: Color = Color("#FF1E42")
 const GOLD: Color = Color("#FFD700")
 const GREEN: Color = Color("#2BFF8A")
 const TEXT: Color = Color("#D8F6FF")
-const DIM: Color = Color("#6C8CA6")
+const DIM: Color = Color("#A2BED1")
 
 static var _font: SystemFont = null
 static var _font_bold: SystemFont = null

@@ -39,7 +39,7 @@ func build(parent: Node) -> void:
 	vl.add_child(flash_rect)
 
 	var cl := CanvasLayer.new()
-	cl.layer = 60
+	cl.layer = 9 # Эффект над миром, но под HUD и модальными окнами.
 	parent.add_child(cl)
 	crt = ColorRect.new()
 	crt.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -55,8 +55,14 @@ func kick_glitch(amount: float = 1.0) -> void:
 	_glitch = maxf(_glitch, amount)
 
 
-func set_alarm(on: bool) -> void:
-	alarm = on
+var _cooldown_ratio: float = 0.0
+var _suspicious: bool = false
+
+
+func set_alarm(state: int, cooldown: int) -> void:
+	alarm = state == AlarmManager.State.ALARM_ACTIVE
+	_suspicious = state == AlarmManager.State.SUSPICION
+	_cooldown_ratio = clampf(float(cooldown) / AlarmManager.COOLDOWN_TURNS, 0.0, 1.0)
 
 
 func flash(color: Color, strength: float = 0.5) -> void:
@@ -71,7 +77,9 @@ func _process(delta: float) -> void:
 	if alarm:
 		var k: float = 0.5 + 0.5 * sin(_t * 6.0)
 		target = Color(1.0, 0.72 + 0.12 * (1.0 - k), 0.74 + 0.12 * (1.0 - k))
-		vig = 0.45 + 0.4 * k
+		vig = (0.25 + 0.6 * _cooldown_ratio) * (0.65 + 0.35 * k)
+	elif _suspicious:
+		target = Color(1.0, 0.96, 0.86)
 	modulate_node.color = modulate_node.color.lerp(target, minf(1.0, delta * 8.0))
 	vignette.modulate.a = lerpf(vignette.modulate.a, vig, minf(1.0, delta * 8.0))
 	if _flash > 0.0:
@@ -79,7 +87,7 @@ func _process(delta: float) -> void:
 		flash_rect.color = Color(_flash_color.r, _flash_color.g, _flash_color.b, _flash)
 	else:
 		flash_rect.color.a = 0.0
-	_alarm_amt = lerpf(_alarm_amt, 1.0 if alarm else 0.0, minf(1.0, delta * 6.0))
+	_alarm_amt = lerpf(_alarm_amt, _cooldown_ratio if alarm else 0.0, minf(1.0, delta * 6.0))
 	if _mat != null:
 		_glitch = maxf(0.0, _glitch - delta * 2.2)
 		_mat.set_shader_parameter("alarm", _alarm_amt)

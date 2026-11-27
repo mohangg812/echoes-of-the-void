@@ -251,7 +251,7 @@ static func _cheb(a: Vector2i, b: Vector2i) -> int:
 # action: {"type": "move"|"dash"|"wait"|"takedown"|"interact"|"gadget", "dir": Vector2i, "slot": int, "target": Vector2i}
 # Возвращает {"ok": bool, "msg": String, "events": Array}. При ok=false ход НЕ тратится.
 func execute_player_turn(action: Dictionary) -> Dictionary:
-	if current_phase == TurnPhase.GAME_OVER_LOCKED or result != "":
+	if current_phase != TurnPhase.AWAITING_INPUT or result != "":
 		return {"ok": false, "msg": "", "events": []}
 	var snap: Dictionary = snapshot()
 	events = []
@@ -262,7 +262,8 @@ func execute_player_turn(action: Dictionary) -> Dictionary:
 	turn_number += 1
 	var res: Dictionary = player.perform_turn_action(self, action)
 	if not bool(res["ok"]):
-		turn_number -= 1
+		player.set_state(snap["player"])
+		turn_number = snap["turn"]
 		noise_queue = []
 		events = []
 		current_phase = TurnPhase.AWAITING_INPUT
@@ -535,6 +536,12 @@ func undo() -> bool:
 func compute_preview() -> Dictionary:
 	var snap: Dictionary = snapshot()
 	var saved_events: Array = events
+	var saved_laser_cells: Dictionary = laser_cells.duplicate()
+	var saved_noise: Array = noise_queue
+	var saved_attack: bool = last_guard_attacked
+	var saved_locks: Array[bool] = []
+	for t in turrets:
+		saved_locks.append(t.locked)
 	dry_run = true
 	turn_number += 1
 	_phase_ai()
@@ -562,6 +569,11 @@ func compute_preview() -> Dictionary:
 	var saved_reason: String = fail_reason
 	var saved_seen: bool = turn_player_seen
 	restore(snap)
+	laser_cells = saved_laser_cells
+	noise_queue = saved_noise
+	last_guard_attacked = saved_attack
+	for i in range(turrets.size()):
+		turrets[i].locked = saved_locks[i]
 	current_phase = saved_phase
 	result = saved_result
 	fail_reason = saved_reason

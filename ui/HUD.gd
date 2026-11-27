@@ -134,7 +134,7 @@ func _build_left() -> void:
 		_add_label(help_panel, String(l[0]), 14, UITheme.AMBER, Vector2(14, y), true)
 		_add_label(help_panel, String(l[1]), 14, UITheme.TEXT, Vector2(150, y))
 		y += 22.0
-	var legend: Label = _add_label(help_panel, "ЯРКИЕ зоны — угроза СЛЕДУЮЩЕГО такта.\nКрасный — тревога, жёлтый — подозрение.", 12, UITheme.DIM, Vector2(14, y + 8))
+	var legend: Label = _add_label(help_panel, "Яркие зоны — прогноз при ожидании.\nКрасный — тревога, жёлтый — подозрение.", 13, UITheme.TEXT, Vector2(14, y + 8))
 	legend.size = Vector2(272, 60)
 	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dialogue = DialogueBox.new()
@@ -149,16 +149,16 @@ func _build_right() -> void:
 	minimap.position = Vector2(8, 8)
 	minimap.size = Vector2(284, 214)
 	mp.add_child(minimap)
-	tasks_panel = _panel(Vector2(1600, 346), Vector2(300, 150), UITheme.GOLD)
+	tasks_panel = _panel(Vector2(1600, 346), Vector2(300, 180), UITheme.GOLD)
 	tasks_panel.title = "ЗАДАЧИ"
-	for i in range(5):
+	for i in range(6):
 		var l: Label = _add_label(tasks_panel, "", 15, UITheme.TEXT, Vector2(14, 14 + i * 26))
 		task_labels.append(l)
-	var fp: NeonPanel = _panel(Vector2(1600, 516), Vector2(300, 440), UITheme.CYAN)
+	var fp: NeonPanel = _panel(Vector2(1600, 546), Vector2(300, 410), UITheme.CYAN)
 	fp.title = "ЖУРНАЛ"
 	feed = EventFeed.new()
 	feed.position = Vector2(10, 10)
-	feed.size = Vector2(280, 420)
+	feed.size = Vector2(280, 390)
 	fp.add_child(feed)
 
 
@@ -241,10 +241,6 @@ func setup(sim: TurnManager) -> void:
 	dialogue.clear()
 
 
-func set_hint(_text: String) -> void:
-	pass
-
-
 func toggle_help() -> void:
 	help_panel.visible = not help_panel.visible
 
@@ -302,8 +298,9 @@ func _update_tasks(sim: TurnManager) -> void:
 	for c in needed:
 		items.append([sim.player.keycards.has(c), "Ключ-карта: %s" % TurnManager.card_name(c).to_lower()])
 	for sw in sim.switches:
-		items.append([sw.on, "Рубильник: %s" % sw.description.to_lower().substr(0, 18)])
-		break
+		var name: String = "Терминал" if sw.kind == "terminal" else "Рубильник"
+		var detail: String = sw.description.to_lower().substr(0, 16)
+		items.append([sw.on, "%s: %s" % [name, detail]])
 	items.append([sim.player.has_gold, "Украсть Ядро данных"])
 	if sim.chips_total > 0:
 		items.append([sim.player.chips >= sim.chips_total, "Чипы: %d/%d" % [sim.player.chips, sim.chips_total]])
